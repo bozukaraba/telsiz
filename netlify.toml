@@ -7,6 +7,8 @@
 [build.environment]
   # Node.js versiyonu
   NODE_VERSION = "18"
+  # TypeScript warning'lerini ignore et
+  CI = "false"
 
 # SPA routing için redirect ayarları
 [[redirects]]
