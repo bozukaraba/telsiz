@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { MobileAudioHelper } from './MobileAudioHelper';
 
 interface LoginScreenProps {
   onLogin: (username: string, roomId: string, password: string, isCreatingRoom: boolean) => void;
@@ -11,6 +12,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showMobileHelper, setShowMobileHelper] = useState(false);
+  const [microphonePermissionGranted, setMicrophonePermissionGranted] = useState(false);
 
   // Session'ı geri yükle
   useEffect(() => {
@@ -43,30 +46,33 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       return;
     }
 
+    // Mobil cihaz kontrolü
+    const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    console.log('📱 Login: Mobil cihaz tespit edildi:', isMobile);
+
+    // Mobil cihazlarda özel helper göster
+    if (isMobile && !microphonePermissionGranted) {
+      console.log('📱 Login: Mobil audio helper gösteriliyor...');
+      setShowMobileHelper(true);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     
     try {
-      // Mikrofon izin kontrolü - mobil uyumlu
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Bu tarayıcı mikrofon erişimini desteklemiyor');
-      }
-
-      // Mobil cihazlar için özel mikrofon ayarları
-      const audioConstraints = {
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          // Mobil cihazlar için düşük latency
-          latency: 0.01,
-          sampleRate: 44100
+      // Desktop cihazlarda basit mikrofon kontrolü
+      if (!isMobile) {
+        console.log('💻 Login: Desktop mikrofon kontrolü...');
+        
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Bu tarayıcı mikrofon erişimini desteklemiyor');
         }
-      };
 
-      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
-      // İzin alındı, stream'i hemen kapat
-      stream.getTracks().forEach(track => track.stop());
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(track => track.stop());
+        console.log('✅ Login: Desktop mikrofon kontrolü başarılı');
+      }
       
       // Session bilgilerini kaydet
       const sessionData = {
@@ -78,6 +84,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       };
       localStorage.setItem('telsiz_session', JSON.stringify(sessionData));
       
+      console.log('🚀 Login: Kullanıcı giriş yapıyor...');
       onLogin(username.trim(), roomId.trim(), password.trim(), isCreatingRoom);
     } catch (error: any) {
       console.error('Mikrofon izni hatası:', error);
@@ -112,6 +119,20 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     setPassword(result);
+  };
+
+  const handleMobilePermissionGranted = () => {
+    console.log('✅ Mobile Helper: Mikrofon izni alındı');
+    setMicrophonePermissionGranted(true);
+    setShowMobileHelper(false);
+    // Otomatik olarak giriş yapmaya devam et
+    handleSubmit(new Event('submit') as any);
+  };
+
+  const handleMobilePermissionDenied = (errorMessage: string) => {
+    console.error('❌ Mobile Helper: Mikrofon izni reddedildi:', errorMessage);
+    setShowMobileHelper(false);
+    setError(errorMessage);
   };
 
   return (
@@ -241,6 +262,14 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
           <li>Butonu bıraktığınızda ses kesilir</li>
         </ul>
       </div>
+
+      {/* Mobil Audio Helper */}
+      {showMobileHelper && (
+        <MobileAudioHelper
+          onPermissionGranted={handleMobilePermissionGranted}
+          onPermissionDenied={handleMobilePermissionDenied}
+        />
+      )}
     </div>
   );
 }; 

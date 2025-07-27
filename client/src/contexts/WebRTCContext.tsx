@@ -195,20 +195,29 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
       console.log('🎤 PTT: Transmission başlatılıyor...');
       console.log('🔗 PTT: Mevcut peer connections:', peerConnections.current.size);
       
-      // Mobil cihazlar için gelişmiş mikrofon ayarları
-      const audioConstraints = {
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          // Mobil optimizasyonları
-          channelCount: 1,
-          sampleRate: { ideal: 44100, min: 16000 },
-          sampleSize: 16,
-          latency: { ideal: 0.01, max: 0.05 }
-        },
-        video: false
-      };
+      // Mobil cihazlar için basitleştirilmiş mikrofon ayarları
+      console.log('📱 PTT: Cihaz tipi kontrol ediliyor...');
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      console.log('📱 PTT: Mobil cihaz:', isMobile);
+      
+      const audioConstraints = isMobile ? 
+        {
+          audio: true,  // Mobil cihazlar için basit constraint
+          video: false
+        } : 
+        {
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            // Desktop optimizasyonları
+            channelCount: 1,
+            sampleRate: { ideal: 44100, min: 16000 }
+          },
+          video: false
+        };
+      
+      console.log('🎧 PTT: Audio constraints:', audioConstraints);
 
       console.log('🎧 PTT: Mikrofon erişimi isteniyor...');
       const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
