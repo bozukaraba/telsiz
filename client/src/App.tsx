@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LoginScreen } from './components/LoginScreen';
 import { TelsizRoom } from './components/TelsizRoom';
-import { SocketProvider } from './contexts/SocketContext';
+import { FirebaseProvider } from './contexts/FirebaseContext';
 import { WebRTCProvider } from './contexts/WebRTCContext';
 import './App.css';
 
@@ -28,7 +28,7 @@ function App() {
       {!user ? (
         <LoginScreen onLogin={handleLogin} />
       ) : (
-        <SocketProvider>
+        <FirebaseProvider>
           <WebRTCProvider>
             <TelsizRoom 
               user={user} 
@@ -36,7 +36,7 @@ function App() {
               onConnectionChange={setIsConnected}
             />
           </WebRTCProvider>
-        </SocketProvider>
+        </FirebaseProvider>
       )}
     </div>
   );

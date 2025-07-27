@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
-import { useSocket } from './SocketContext';
+import { useFirebase } from './FirebaseContext';
 import { config } from '../config';
 
 interface PeerConnection {
@@ -33,7 +33,7 @@ interface WebRTCProviderProps {
 }
 
 export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
-  const { socket, sendSignal } = useSocket();
+  const { sendSignal, onSignalReceived, onUserJoined, onUserLeft } = useFirebase();
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [audioLevel, setAudioLevel] = useState(0);
@@ -59,46 +59,41 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
       });
   }, []);
 
-  // Socket event dinleyicileri
+  // Firebase event dinleyicileri
   useEffect(() => {
-    if (!socket) return;
-
-    socket.on('user-joined', async (data: { userId: string; username: string }) => {
-      console.log('Kullanıcı katıldı:', data.username);
-      await setupPeerConnection(data.userId);
+    // Kullanıcı katıldı
+    onUserJoined(async (user) => {
+      console.log('Kullanıcı katıldı:', user.username);
+      await setupPeerConnection(user.id);
     });
 
-    socket.on('user-left', (data: { userId: string; username: string }) => {
-      console.log('Kullanıcı ayrıldı:', data.username);
-      closePeerConnection(data.userId);
+    // Kullanıcı ayrıldı
+    onUserLeft((userId) => {
+      console.log('Kullanıcı ayrıldı:', userId);
+      closePeerConnection(userId);
     });
 
-    socket.on('signal', async (data: { fromUserId: string; signal: any; type: string }) => {
-      const peerConnection = peerConnections.current.get(data.fromUserId);
+    // Signal alındı
+    onSignalReceived(async (signal) => {
+      const peerConnection = peerConnections.current.get(signal.fromUserId);
       if (!peerConnection) return;
 
       try {
-        if (data.type === 'offer') {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
+        if (signal.type === 'offer') {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data));
           const answer = await peerConnection.createAnswer();
           await peerConnection.setLocalDescription(answer);
-          sendSignal(data.fromUserId, answer, 'answer');
-        } else if (data.type === 'answer') {
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(data.signal));
-        } else if (data.type === 'ice-candidate') {
-          await peerConnection.addIceCandidate(new RTCIceCandidate(data.signal));
+          sendSignal(signal.fromUserId, answer, 'answer');
+        } else if (signal.type === 'answer') {
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(signal.data));
+        } else if (signal.type === 'ice-candidate') {
+          await peerConnection.addIceCandidate(new RTCIceCandidate(signal.data));
         }
       } catch (error) {
         console.error('Signal işleme hatası:', error);
       }
     });
-
-    return () => {
-      socket.off('user-joined');
-      socket.off('user-left');
-      socket.off('signal');
-    };
-  }, [socket, sendSignal]);
+  }, [sendSignal, onUserJoined, onUserLeft, onSignalReceived]);
 
   // Audio level monitoring
   const updateAudioLevel = () => {

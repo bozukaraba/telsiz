@@ -1,0 +1,27 @@
+{
+  "rules": {
+    "rooms": {
+      "$roomId": {
+        ".read": true,
+        ".write": true,
+        "users": {
+          "$userId": {
+            ".validate": "newData.hasChildren(['id', 'username', 'joinedAt', 'isSpeaking'])"
+          }
+        },
+        "ptt": {
+          ".validate": "newData.hasChildren(['isActive', 'userId', 'username', 'timestamp'])"
+        }
+      }
+    },
+    "signals": {
+      "$userId": {
+        ".read": "$userId === auth.uid",
+        ".write": true,
+        "$signalId": {
+          ".validate": "newData.hasChildren(['type', 'data', 'fromUserId', 'toUserId', 'timestamp'])"
+        }
+      }
+    }
+  }
+} 

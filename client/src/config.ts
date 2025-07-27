@@ -1,5 +1,5 @@
 // Uygulama konfigürasyonu
-const isDevelopment = window.location.hostname === 'localhost';
+const isDevelopment = true; // Geçici olarak local backend kullan
 
 export const config = {
   // Backend server URL

@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { useSocket } from '../contexts/SocketContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useWebRTC } from '../contexts/WebRTCContext';
 
 interface PTTButtonProps {
@@ -7,7 +7,7 @@ interface PTTButtonProps {
 }
 
 export const PTTButton: React.FC<PTTButtonProps> = ({ disabled = false }) => {
-  const { startPTT, stopPTT } = useSocket();
+  const { startPTT, stopPTT } = useFirebase();
   const { startTransmission, stopTransmission, isTransmitting } = useWebRTC();
   const [isPressed, setIsPressed] = useState(false);
   const [error, setError] = useState<string | null>(null);

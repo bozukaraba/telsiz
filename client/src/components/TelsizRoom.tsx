@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSocket } from '../contexts/SocketContext';
+import { useFirebase } from '../contexts/FirebaseContext';
 import { useWebRTC } from '../contexts/WebRTCContext';
 import { PTTButton } from './PTTButton';
 import { UsersList } from './UsersList';
@@ -27,70 +27,86 @@ export const TelsizRoom: React.FC<TelsizRoomProps> = ({
   onLogout, 
   onConnectionChange 
 }) => {
-  const { socket, isConnected, joinRoom, leaveRoom } = useSocket();
+  const { 
+    user: firebaseUser, 
+    currentRoom, 
+    isConnected, 
+    joinRoom, 
+    leaveRoom, 
+    onUserJoined, 
+    onUserLeft, 
+    onPTTStarted, 
+    onPTTStopped 
+  } = useFirebase();
+  
   const { audioLevel, remoteStreams } = useWebRTC();
   const [users, setUsers] = useState<RoomUser[]>([]);
   const [speakingUser, setSpeakingUser] = useState<string | null>(null);
   const [connectionTime, setConnectionTime] = useState<Date | null>(null);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
 
-  // Odaya katıl
+  // Firebase'e bağlanınca odaya katıl
   useEffect(() => {
-    if (socket && isConnected) {
+    if (firebaseUser && isConnected) {
       joinRoom(user.roomId, user.username);
       setConnectionTime(new Date());
     }
-  }, [socket, isConnected, user.roomId, user.username, joinRoom]);
+  }, [firebaseUser, isConnected, user.roomId, user.username, joinRoom]);
 
   // Bağlantı durumu değişikliğini bildir
   useEffect(() => {
     onConnectionChange(isConnected);
   }, [isConnected, onConnectionChange]);
 
-  // Socket event dinleyicileri
+  // Oda değişikliklerini dinle
   useEffect(() => {
-    if (!socket) return;
+    if (currentRoom) {
+      const usersList = Object.values(currentRoom.users).map(roomUser => ({
+        id: roomUser.id,
+        username: roomUser.username,
+        isSpeaking: roomUser.isSpeaking
+      }));
+      setUsers(usersList);
+    }
+  }, [currentRoom]);
 
-    socket.on('room-joined', (data: { roomId: string; users: RoomUser[] }) => {
-      console.log('Odaya katıldı:', data);
-      setUsers(data.users);
+  // Firebase event dinleyicileri
+  useEffect(() => {
+    // Kullanıcı katıldı
+    onUserJoined((newUser) => {
+      console.log('Yeni kullanıcı:', newUser.username);
+      setUsers(prev => [...prev.filter(u => u.id !== newUser.id), {
+        id: newUser.id,
+        username: newUser.username,
+        isSpeaking: false
+      }]);
     });
 
-    socket.on('user-joined', (data: { userId: string; username: string }) => {
-      console.log('Yeni kullanıcı:', data);
-      setUsers(prev => [...prev, { id: data.userId, username: data.username }]);
-    });
-
-    socket.on('user-left', (data: { userId: string; username: string }) => {
-      console.log('Kullanıcı ayrıldı:', data);
-      setUsers(prev => prev.filter(u => u.id !== data.userId));
-      if (speakingUser === data.userId) {
+    // Kullanıcı ayrıldı
+    onUserLeft((userId) => {
+      console.log('Kullanıcı ayrıldı:', userId);
+      setUsers(prev => prev.filter(u => u.id !== userId));
+      if (speakingUser === userId) {
         setSpeakingUser(null);
       }
     });
 
-    socket.on('ptt-started', (data: { userId: string; username: string }) => {
-      console.log('PTT başladı:', data);
-      setSpeakingUser(data.userId);
+    // PTT başladı
+    onPTTStarted((userId) => {
+      console.log('PTT başladı:', userId);
+      setSpeakingUser(userId);
       setUsers(prev => prev.map(u => 
-        u.id === data.userId ? { ...u, isSpeaking: true } : { ...u, isSpeaking: false }
+        u.id === userId ? { ...u, isSpeaking: true } : { ...u, isSpeaking: false }
       ));
     });
 
-    socket.on('ptt-stopped', (data: { userId: string; username: string }) => {
-      console.log('PTT durdu:', data);
+    // PTT durdu
+    onPTTStopped((userId) => {
+      console.log('PTT durdu:', userId);
       setSpeakingUser(null);
       setUsers(prev => prev.map(u => ({ ...u, isSpeaking: false })));
     });
-
-    return () => {
-      socket.off('room-joined');
-      socket.off('user-joined');
-      socket.off('user-left');
-      socket.off('ptt-started');
-      socket.off('ptt-stopped');
-    };
-  }, [socket, speakingUser]);
+  }, [onUserJoined, onUserLeft, onPTTStarted, onPTTStopped, speakingUser]);
 
   // Remote audio streams
   useEffect(() => {
@@ -114,7 +130,7 @@ export const TelsizRoom: React.FC<TelsizRoomProps> = ({
   }, [remoteStreams]);
 
   const handleLogout = () => {
-    if (socket) {
+    if (firebaseUser) {
       leaveRoom();
     }
     
