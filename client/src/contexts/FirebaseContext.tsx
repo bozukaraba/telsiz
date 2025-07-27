@@ -113,7 +113,14 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
       const roomSnapshot = await get(roomRef);
       
       if (roomSnapshot.exists()) {
-        throw new Error('Bu oda adı zaten kullanılıyor');
+        // Mevcut oda varsa şifre kontrol et ve katıl
+        const existingRoom = roomSnapshot.val() as Room;
+        if (existingRoom.password !== password) {
+          throw new Error('Bu oda adı mevcut ama şifre yanlış');
+        }
+        // Şifre doğruysa mevcut odaya katıl
+        await joinRoom(roomId, username, password);
+        return;
       }
 
       // Yeni oda oluştur
@@ -151,7 +158,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
       const roomSnapshot = await get(roomRef);
       
       if (!roomSnapshot.exists()) {
-        throw new Error('Oda bulunamadı');
+        throw new Error(`"${roomId}" adlı oda bulunamadı. Önce oda oluşturun.`);
       }
 
       const roomData = roomSnapshot.val() as Room;
@@ -226,12 +233,12 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
         const pttData = snapshot.val();
         console.log('🎤 PTT durumu:', pttData);
         
-        if (pttData) {
-          if (pttData.isActive && pttData.userId !== user.uid) {
-            if (pttStartedCallback) pttStartedCallback(pttData.userId);
-          } else if (!pttData.isActive && pttStoppedCallback) {
-            if (pttStoppedCallback) pttStoppedCallback(pttData.userId);
-          }
+        if (pttData && pttData.isActive && pttData.userId !== user.uid) {
+          // Başka kullanıcı konuşuyor
+          if (pttStartedCallback) pttStartedCallback(pttData.userId);
+        } else {
+          // PTT durdu veya veri yok
+          if (pttStoppedCallback) pttStoppedCallback('');
         }
       });
 
@@ -305,12 +312,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
     try {
       console.log('🎤 PTT durduruluyor...');
       const pttRef = ref(database, `rooms/${currentRoom.id}/ptt`);
-      await set(pttRef, {
-        isActive: false,
-        userId: user.uid,
-        username,
-        timestamp: Date.now()
-      });
+      // PTT durdururken veriyi tamamen sil
+      await remove(pttRef);
       console.log('✅ PTT durduruldu');
     } catch (error: any) {
       console.error('❌ PTT durdurma hatası:', error);
