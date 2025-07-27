@@ -199,17 +199,40 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
 
       // Kullanıcı değişikliklerini dinle
       const usersRef = ref(database, `rooms/${roomId}/users`);
+      let previousUsers = new Set<string>();
+      
       onValue(usersRef, (snapshot) => {
         const users = snapshot.val();
-        console.log('👥 Kullanıcılar güncellendi:', users);
+        console.log('👥 Firebase: Kullanıcılar güncellendi:', users);
         
-        if (users && currentRoom) {
-          // Yeni kullanıcılar için callback
-          Object.values(users).forEach((roomUser: any) => {
-            if (roomUser.id !== user.uid && userJoinedCallback) {
-              userJoinedCallback(roomUser);
+        if (users) {
+          const currentUserIds = new Set(Object.keys(users));
+          console.log('📊 Firebase: Önceki kullanıcılar:', Array.from(previousUsers));
+          console.log('📊 Firebase: Şimdiki kullanıcılar:', Array.from(currentUserIds));
+          
+          // Yeni katılan kullanıcıları tespit et
+          currentUserIds.forEach(userId => {
+            if (userId !== user.uid && !previousUsers.has(userId)) {
+              const roomUser = users[userId];
+              console.log('🆕 Firebase: Yeni kullanıcı katıldı:', roomUser.username, userId);
+              if (userJoinedCallback) {
+                userJoinedCallback(roomUser);
+              }
             }
           });
+          
+          // Ayrılan kullanıcıları tespit et
+          previousUsers.forEach(userId => {
+            if (userId !== user.uid && !currentUserIds.has(userId)) {
+              console.log('👋 Firebase: Kullanıcı ayrıldı:', userId);
+              if (userLeftCallback) {
+                userLeftCallback(userId);
+              }
+            }
+          });
+          
+          // Kullanıcı listesini güncelle
+          previousUsers = currentUserIds;
         }
       });
 

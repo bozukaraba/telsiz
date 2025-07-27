@@ -63,13 +63,18 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
   useEffect(() => {
     // Kullanıcı katıldı
     onUserJoined(async (user) => {
-      console.log('Kullanıcı katıldı:', user.username);
-      await setupPeerConnection(user.id);
+      console.log('🔗 WebRTC: Kullanıcı katıldı:', user.username, 'ID:', user.id);
+      try {
+        await setupPeerConnection(user.id);
+        console.log('✅ WebRTC: Peer connection kuruldu:', user.id);
+      } catch (error) {
+        console.error('❌ WebRTC: Peer connection hatası:', error);
+      }
     });
 
     // Kullanıcı ayrıldı
     onUserLeft((userId) => {
-      console.log('Kullanıcı ayrıldı:', userId);
+      console.log('👋 WebRTC: Kullanıcı ayrıldı:', userId);
       closePeerConnection(userId);
     });
 
@@ -115,6 +120,9 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
 
   const setupPeerConnection = async (userId: string): Promise<void> => {
     try {
+      console.log(`🔗 Peer: ${userId} için connection kuruluyor...`);
+      console.log(`📊 Peer: ICE servers count:`, iceServers.length);
+      
       const peerConnection = new RTCPeerConnection({
         iceServers
       });
@@ -122,40 +130,49 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
       // ICE candidate eventi
       peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
+          console.log(`🧊 Peer: ICE candidate gönderiliyor ${userId}'ye`);
           sendSignal(userId, event.candidate, 'ice-candidate');
         }
       };
 
       // Remote stream eventi
       peerConnection.ontrack = (event) => {
-        console.log('Remote stream alındı:', userId);
+        console.log(`🎵 Peer: Remote stream alındı ${userId}'den:`, event.streams[0].getTracks().length, 'tracks');
         setRemoteStreams(prev => new Map(prev.set(userId, event.streams[0])));
       };
 
       // Bağlantı durumu
       peerConnection.onconnectionstatechange = () => {
-        console.log(`Peer bağlantı durumu [${userId}]:`, peerConnection.connectionState);
+        console.log(`📡 Peer: Bağlantı durumu [${userId}]:`, peerConnection.connectionState);
         if (peerConnection.connectionState === 'disconnected' || 
             peerConnection.connectionState === 'failed') {
+          console.log(`💔 Peer: Connection failed/disconnected, closing ${userId}`);
           closePeerConnection(userId);
         }
       };
 
       peerConnections.current.set(userId, peerConnection);
+      console.log(`✅ Peer: ${userId} peer connection map'e eklendi. Toplam:`, peerConnections.current.size);
 
       // Local stream varsa ekle
       if (localStream) {
+        console.log(`🎤 Peer: Local stream mevcut, ${userId}'ye track'ler ekleniyor...`);
         localStream.getTracks().forEach(track => {
+          console.log(`➡️ Peer: Track ekleniyor ${userId}'ye:`, track.kind);
           peerConnection.addTrack(track, localStream);
         });
 
         // Offer oluştur ve gönder
+        console.log(`📞 Peer: ${userId} için offer oluşturuluyor...`);
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
         sendSignal(userId, offer, 'offer');
+        console.log(`✅ Peer: Offer gönderildi ${userId}'ye`);
+      } else {
+        console.log(`⚠️ Peer: Local stream yok, ${userId} için track eklenemiyor`);
       }
     } catch (error) {
-      console.error('Peer connection kurulum hatası:', error);
+      console.error(`❌ Peer: ${userId} connection kurulum hatası:`, error);
     }
   };
 
@@ -175,6 +192,9 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
 
   const startTransmission = async (): Promise<void> => {
     try {
+      console.log('🎤 PTT: Transmission başlatılıyor...');
+      console.log('🔗 PTT: Mevcut peer connections:', peerConnections.current.size);
+      
       // Mobil cihazlar için gelişmiş mikrofon ayarları
       const audioConstraints = {
         audio: {
@@ -190,7 +210,10 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
         video: false
       };
 
+      console.log('🎧 PTT: Mikrofon erişimi isteniyor...');
       const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      console.log('✅ PTT: Mikrofon erişimi başarılı, track count:', stream.getTracks().length);
+      
       setLocalStream(stream);
       setIsTransmitting(true);
 
@@ -211,17 +234,25 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
         source.connect(analyser.current);
 
         updateAudioLevel();
+        console.log('🔊 PTT: AudioContext ve analyser kuruldu');
       } catch (audioError) {
-        console.warn('AudioContext kurulum hatası:', audioError);
+        console.warn('⚠️ PTT: AudioContext kurulum hatası:', audioError);
         // AudioContext olmadan da devam et
       }
 
       // Mevcut peer bağlantılarına track ekle
+      const peerConnectionCount = peerConnections.current.size;
+      console.log(`📡 PTT: ${peerConnectionCount} peer connection'a track ekleniyor...`);
+      
       stream.getTracks().forEach(track => {
-        peerConnections.current.forEach(peerConnection => {
+        console.log('🎵 PTT: Track ekleniyor:', track.kind, track.id);
+        peerConnections.current.forEach((peerConnection, userId) => {
+          console.log(`➡️ PTT: Track ekleniyor peer ${userId}'ye:`, peerConnection.connectionState);
           peerConnection.addTrack(track, stream);
         });
       });
+      
+      console.log('✅ PTT: Transmission başarıyla başlatıldı!');
 
     } catch (error: any) {
       console.error('Mikrofon erişim hatası:', error);
@@ -240,22 +271,31 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
   };
 
   const stopTransmission = () => {
+    console.log('🛑 PTT: Transmission durduruluyor...');
+    
     if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+      console.log('🎤 PTT: Local stream trackleri durduruluyor...');
+      localStream.getTracks().forEach(track => {
+        console.log('⏹️ PTT: Track durduruluyor:', track.kind, track.id);
+        track.stop();
+      });
       setLocalStream(null);
     }
 
     if (audioContext.current) {
+      console.log('🔊 PTT: AudioContext kapatılıyor...');
       audioContext.current.close();
       audioContext.current = null;
     }
 
     if (animationFrame.current) {
+      console.log('🎛️ PTT: Animation frame iptal ediliyor...');
       cancelAnimationFrame(animationFrame.current);
     }
 
     setIsTransmitting(false);
     setAudioLevel(0);
+    console.log('✅ PTT: Transmission başarıyla durduruldu');
   };
 
   // Cleanup

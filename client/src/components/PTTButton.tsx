@@ -17,11 +17,15 @@ export const PTTButton: React.FC<PTTButtonProps> = ({ disabled = false }) => {
     
     try {
       setError(null);
+      console.log('🎤 PTT Button: PTT başlatılıyor...');
+      
       await startTransmission();
       startPTT();
       setIsPressed(true);
+      
+      console.log('✅ PTT Button: PTT başarıyla başlatıldı');
     } catch (err: any) {
-      console.error('PTT başlatma hatası:', err);
+      console.error('❌ PTT Button: PTT başlatma hatası:', err);
       
       // Mobil cihazlar için özel hata mesajları
       let errorMessage = 'Mikrofon erişimi reddedildi';
@@ -40,9 +44,11 @@ export const PTTButton: React.FC<PTTButtonProps> = ({ disabled = false }) => {
   const handlePTTStop = useCallback(() => {
     if (!isPressed) return;
     
+    console.log('🛑 PTT Button: PTT durduruluyor...');
     stopTransmission();
     stopPTT();
     setIsPressed(false);
+    console.log('✅ PTT Button: PTT başarıyla durduruldu');
   }, [isPressed, stopTransmission, stopPTT]);
 
   // Mouse events
