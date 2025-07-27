@@ -1,0 +1,14 @@
+[build]
+  builder = "dockerfile"
+  dockerfilePath = "Dockerfile.backend"
+
+[deploy]
+  startCommand = "node server/dist/index.js"
+  healthcheckPath = "/health"
+  healthcheckTimeout = 30
+  restartPolicyType = "on_failure"
+
+[env]
+  NODE_ENV = "production"
+  CLIENT_URL = "https://telsiz.netlify.app"
+  PORT = "$PORT" 

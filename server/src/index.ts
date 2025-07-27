@@ -11,7 +11,11 @@ const httpServer = createServer(app);
 // Güvenlik ve CORS ayarları
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  origin: [
+    process.env.CLIENT_URL || "http://localhost:3000",
+    "https://telsiz.netlify.app",
+    "http://localhost:3000"
+  ],
   credentials: true
 }));
 
@@ -20,7 +24,11 @@ app.use(express.json());
 // Socket.IO sunucusu
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
+    origin: [
+      process.env.CLIENT_URL || "http://localhost:3000",
+      "https://telsiz.netlify.app",
+      "http://localhost:3000"
+    ],
     methods: ["GET", "POST"]
   }
 });

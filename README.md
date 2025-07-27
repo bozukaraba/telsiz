@@ -126,14 +126,38 @@ REACT_APP_SERVER_URL=http://localhost:3001
 
 ## 🚀 Dağıtım
 
-### Docker ile Production
-```bash
-# Production build
-docker-compose -f docker-compose.yml up --build -d
+### Canlı Demo
+- **Frontend**: [https://telsiz.netlify.app](https://telsiz.netlify.app)
+- **Backend**: Railway üzerinde deploy
 
-# SSL sertifikası ekleyin
-mkdir ssl
-# SSL dosyalarınızı ssl/ klasörüne koyun
+### Railway ile Backend Deploy
+```bash
+# 1. Railway CLI yükle
+npm install -g @railway/cli
+
+# 2. Railway'e login
+railway login
+
+# 3. Proje oluştur
+railway new
+
+# 4. GitHub repo'yu bağla
+railway connect
+
+# 5. Deploy
+railway up
+```
+
+### Netlify ile Frontend Deploy
+```bash
+# 1. GitHub'a push et
+git push origin main
+
+# 2. Netlify'da repo'yu bağla
+# 3. Build ayarları:
+#    - Base directory: client
+#    - Build command: npm run build
+#    - Publish directory: build
 ```
 
 ### Manuel Dağıtım

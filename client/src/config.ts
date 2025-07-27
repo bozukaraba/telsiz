@@ -4,8 +4,8 @@ const isDevelopment = window.location.hostname === 'localhost';
 export const config = {
   // Backend server URL
   serverUrl: isDevelopment 
-    ? 'http://localhost:3001'         // Development
-    : 'https://your-backend-url.com', // Production backend URL'ini buraya koy
+    ? 'http://localhost:3001'                           // Development
+    : 'https://telsiz-backend.up.railway.app',         // Production backend (Railway URL)
   
   // WebRTC konfigürasyonu
   iceServers: [
