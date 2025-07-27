@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  telsiz-app:
+    build: .
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - telsiz-network
+
+  # TURN sunucusu (coturn)
+  coturn:
+    image: coturn/coturn:4.6
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp" 
+      - "49152-65535:49152-65535/udp"
+    environment:
+      - TURN_USERNAME=telsiz
+      - TURN_PASSWORD=telsiz123
+    command: >
+      turnserver
+      --listening-port=3478
+      --listening-ip=0.0.0.0
+      --relay-ip=0.0.0.0
+      --external-ip=$$(curl -s http://checkip.amazonaws.com/)
+      --user=telsiz:telsiz123
+      --realm=telsiz.local
+      --lt-cred-mech
+      --fingerprint
+      --no-multicast-peers
+      --no-cli
+      --no-tlsv1
+      --no-tlsv1_1
+      --verbose
+    restart: unless-stopped
+    networks:
+      - telsiz-network
+
+  # Nginx reverse proxy (opsiyonel - production için)
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - telsiz-app
+    restart: unless-stopped
+    networks:
+      - telsiz-network
+
+networks:
+  telsiz-network:
+    driver: bridge
+
+volumes:
+  ssl-certs: 
