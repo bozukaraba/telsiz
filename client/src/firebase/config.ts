@@ -2,15 +2,15 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getAuth } from 'firebase/auth';
 
-// Firebase config - Firebase Console'dan alınacak
+// Firebase config - Firebase Console'dan alındı
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
+  apiKey: "AIzaSyAQBRdArgAmCM2BTWuwMhV2iBpI7yFusGs",
   authDomain: "telsiz-94582.firebaseapp.com",
   databaseURL: "https://telsiz-94582-default-rtdb.firebaseio.com",
   projectId: "telsiz-94582",
-  storageBucket: "telsiz-94582.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  storageBucket: "telsiz-94582.firebasestorage.app",
+  messagingSenderId: "847987518070",
+  appId: "1:847987518070:web:1995466b94d767739a4d57"
 };
 
 // Firebase'i başlat
