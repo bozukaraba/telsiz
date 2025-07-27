@@ -20,9 +20,20 @@ export const PTTButton: React.FC<PTTButtonProps> = ({ disabled = false }) => {
       await startTransmission();
       startPTT();
       setIsPressed(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error('PTT başlatma hatası:', err);
-      setError('Mikrofon erişimi reddedildi');
+      
+      // Mobil cihazlar için özel hata mesajları
+      let errorMessage = 'Mikrofon erişimi reddedildi';
+      if (err.message && err.message.includes('Mikrofon izni reddedildi')) {
+        errorMessage = 'Mikrofon iznini tarayıcı ayarlarından verin';
+      } else if (err.message && err.message.includes('Mikrofon bulunamadı')) {
+        errorMessage = 'Mikrofon bulunamadı. Cihazı kontrol edin';
+      } else if (err.message && err.message.includes('uyumsuz')) {
+        errorMessage = 'Mikrofon ayarları uyumsuz';
+      }
+      
+      setError(errorMessage);
     }
   }, [disabled, isPressed, startTransmission, startPTT]);
 

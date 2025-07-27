@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 interface LoginScreenProps {
   onLogin: (username: string, roomId: string, password: string, isCreatingRoom: boolean) => void;
@@ -12,6 +12,29 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Session'ı geri yükle
+  useEffect(() => {
+    const savedSession = localStorage.getItem('telsiz_session');
+    if (savedSession) {
+      try {
+        const sessionData = JSON.parse(savedSession);
+        // 24 saat içindeki session'ları kabul et
+        if (Date.now() - sessionData.timestamp < 24 * 60 * 60 * 1000) {
+          setUsername(sessionData.username);
+          setRoomId(sessionData.roomId);
+          setPassword(sessionData.password);
+          setIsCreatingRoom(sessionData.isCreatingRoom);
+        } else {
+          // Eski session'ı sil
+          localStorage.removeItem('telsiz_session');
+        }
+      } catch (error) {
+        console.error('Session geri yükleme hatası:', error);
+        localStorage.removeItem('telsiz_session');
+      }
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -24,12 +47,53 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError(null);
     
     try {
-      // Mikrofon iznini kontrol et
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Mikrofon izin kontrolü - mobil uyumlu
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Bu tarayıcı mikrofon erişimini desteklemiyor');
+      }
+
+      // Mobil cihazlar için özel mikrofon ayarları
+      const audioConstraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          // Mobil cihazlar için düşük latency
+          latency: 0.01,
+          sampleRate: 44100
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+      // İzin alındı, stream'i hemen kapat
+      stream.getTracks().forEach(track => track.stop());
+      
+      // Session bilgilerini kaydet
+      const sessionData = {
+        username: username.trim(),
+        roomId: roomId.trim(), 
+        password: password.trim(),
+        isCreatingRoom,
+        timestamp: Date.now()
+      };
+      localStorage.setItem('telsiz_session', JSON.stringify(sessionData));
+      
       onLogin(username.trim(), roomId.trim(), password.trim(), isCreatingRoom);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Mikrofon izni hatası:', error);
-      setError('Bu uygulama için mikrofon iznine ihtiyaç var. Lütfen izin verin.');
+      let errorMessage = 'Bu uygulama için mikrofon iznine ihtiyaç var. ';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage += 'Lütfen tarayıcı ayarlarından mikrofon iznini verin.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage += 'Mikrofon bulunamadı. Cihazınızda mikrofon olduğundan emin olun.';
+      } else if (error.name === 'NotSupportedError') {
+        errorMessage += 'Bu tarayıcı mikrofon erişimini desteklemiyor.';
+      } else {
+        errorMessage += 'Lütfen sayfa yenileyip tekrar deneyin.';
+      }
+      
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

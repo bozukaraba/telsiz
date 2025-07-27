@@ -204,4 +204,10 @@
     height: 150px;
     font-size: 16px;
   }
+}
+
+/* Spinner animasyonu */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 } 

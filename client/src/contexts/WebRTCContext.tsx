@@ -175,26 +175,46 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
 
   const startTransmission = async (): Promise<void> => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
+      // Mobil cihazlar için gelişmiş mikrofon ayarları
+      const audioConstraints = {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
+          autoGainControl: true,
+          // Mobil optimizasyonları
+          channelCount: 1,
+          sampleRate: { ideal: 44100, min: 16000 },
+          sampleSize: 16,
+          latency: { ideal: 0.01, max: 0.05 }
         },
         video: false
-      });
+      };
 
+      const stream = await navigator.mediaDevices.getUserMedia(audioConstraints);
       setLocalStream(stream);
       setIsTransmitting(true);
 
-      // Audio context ve analyser kurulumu
-      audioContext.current = new AudioContext();
-      const source = audioContext.current.createMediaStreamSource(stream);
-      analyser.current = audioContext.current.createAnalyser();
-      analyser.current.fftSize = 256;
-      source.connect(analyser.current);
+      // Audio context kurulumu - mobil uyumlu
+      try {
+        // AudioContext'i user gesture ile başlat
+        audioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        
+        // Mobil Safari için suspend durumunu kontrol et
+        if (audioContext.current.state === 'suspended') {
+          await audioContext.current.resume();
+        }
+        
+        const source = audioContext.current.createMediaStreamSource(stream);
+        analyser.current = audioContext.current.createAnalyser();
+        analyser.current.fftSize = 256;
+        analyser.current.smoothingTimeConstant = 0.8;
+        source.connect(analyser.current);
 
-      updateAudioLevel();
+        updateAudioLevel();
+      } catch (audioError) {
+        console.warn('AudioContext kurulum hatası:', audioError);
+        // AudioContext olmadan da devam et
+      }
 
       // Mevcut peer bağlantılarına track ekle
       stream.getTracks().forEach(track => {
@@ -203,9 +223,19 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
         });
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Mikrofon erişim hatası:', error);
-      throw error;
+      
+      // Mobil cihazlarda daha açıklayıcı hata mesajları
+      if (error.name === 'NotAllowedError') {
+        throw new Error('Mikrofon izni reddedildi. Tarayıcı ayarlarından izin verin.');
+      } else if (error.name === 'NotFoundError') {
+        throw new Error('Mikrofon bulunamadı. Cihazınızın mikrofonunu kontrol edin.');
+      } else if (error.name === 'OverconstrainedError') {
+        throw new Error('Mikrofon ayarları cihazınızla uyumsuz.');
+      } else {
+        throw new Error('Mikrofon erişim hatası: ' + error.message);
+      }
     }
   };
 
