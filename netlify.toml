@@ -1,7 +1,8 @@
 [build]
   # Build komutları
-  command = "cd client && npm install && npm run build"
-  publish = "client/build"
+  base = "client"
+  command = "npm install && npm run build"
+  publish = "build"
 
 [build.environment]
   # Node.js versiyonu

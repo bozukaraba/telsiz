@@ -1,11 +1,11 @@
 // Uygulama konfigürasyonu
+const isDevelopment = window.location.hostname === 'localhost';
+
 export const config = {
   // Backend server URL
-  serverUrl: process.env.REACT_APP_SERVER_URL || 
-    (process.env.NODE_ENV === 'production' 
-      ? 'https://your-backend-url.com'  // Production backend URL'ini buraya koy
-      : 'http://localhost:3001'         // Development
-    ),
+  serverUrl: isDevelopment 
+    ? 'http://localhost:3001'         // Development
+    : 'https://your-backend-url.com', // Production backend URL'ini buraya koy
   
   // WebRTC konfigürasyonu
   iceServers: [
