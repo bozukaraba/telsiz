@@ -8,6 +8,8 @@ import { VUMeter } from './VUMeter';
 interface User {
   username: string;
   roomId: string;
+  password: string;
+  isCreatingRoom: boolean;
 }
 
 interface TelsizRoomProps {
@@ -31,7 +33,9 @@ export const TelsizRoom: React.FC<TelsizRoomProps> = ({
     user: firebaseUser, 
     currentRoom, 
     isConnected, 
+    connectionError,
     joinRoom, 
+    createRoom,
     leaveRoom, 
     onUserJoined, 
     onUserLeft, 
@@ -45,13 +49,25 @@ export const TelsizRoom: React.FC<TelsizRoomProps> = ({
   const [connectionTime, setConnectionTime] = useState<Date | null>(null);
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
 
-  // Firebase'e bağlanınca odaya katıl
+  // Firebase'e bağlanınca odaya katıl veya oluştur
   useEffect(() => {
     if (firebaseUser && isConnected) {
-      joinRoom(user.roomId, user.username);
-      setConnectionTime(new Date());
+      const handleRoomAction = async () => {
+        try {
+          if (user.isCreatingRoom) {
+            await createRoom(user.roomId, user.username, user.password);
+          } else {
+            await joinRoom(user.roomId, user.username, user.password);
+          }
+          setConnectionTime(new Date());
+        } catch (error: any) {
+          console.error('Oda işlemi hatası:', error);
+        }
+      };
+      
+      handleRoomAction();
     }
-  }, [firebaseUser, isConnected, user.roomId, user.username, joinRoom]);
+  }, [firebaseUser, isConnected, user.roomId, user.username, user.password, user.isCreatingRoom, joinRoom, createRoom]);
 
   // Bağlantı durumu değişikliğini bildir
   useEffect(() => {
@@ -207,7 +223,7 @@ export const TelsizRoom: React.FC<TelsizRoomProps> = ({
       <UsersList users={users} speakingUserId={speakingUser} />
 
       {/* Bağlantı durumu uyarısı */}
-      {!isConnected && (
+      {(!isConnected || connectionError) && (
         <div style={{
           position: 'fixed',
           top: '20px',
@@ -218,9 +234,32 @@ export const TelsizRoom: React.FC<TelsizRoomProps> = ({
           padding: '10px 20px',
           borderRadius: '10px',
           fontWeight: 'bold',
-          zIndex: 1000
+          zIndex: 1000,
+          maxWidth: '90%',
+          textAlign: 'center'
         }}>
-          ⚠️ Bağlantı problemi! Yeniden bağlanılıyor...
+          ⚠️ {connectionError || 'Bağlantı problemi! Yeniden bağlanılıyor...'}
+        </div>
+      )}
+
+      {/* Debug bilgileri (geliştirme için) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          background: 'rgba(0, 0, 0, 0.8)',
+          color: 'white',
+          padding: '10px',
+          borderRadius: '5px',
+          fontSize: '12px',
+          maxWidth: '300px'
+        }}>
+          <div>🔥 Firebase User: {firebaseUser ? '✅' : '❌'}</div>
+          <div>🏠 Current Room: {currentRoom ? '✅' : '❌'}</div>
+          <div>🔗 Connected: {isConnected ? '✅' : '❌'}</div>
+          <div>👥 Users: {users.length}</div>
+          {connectionError && <div style={{ color: '#f44336' }}>❌ Error: {connectionError}</div>}
         </div>
       )}
     </div>

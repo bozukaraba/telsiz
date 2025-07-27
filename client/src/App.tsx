@@ -8,14 +8,16 @@ import './App.css';
 interface User {
   username: string;
   roomId: string;
+  password: string;
+  isCreatingRoom: boolean;
 }
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  const handleLogin = (username: string, roomId: string) => {
-    setUser({ username, roomId });
+  const handleLogin = (username: string, roomId: string, password: string, isCreatingRoom: boolean) => {
+    setUser({ username, roomId, password, isCreatingRoom });
   };
 
   const handleLogout = () => {

@@ -6,6 +6,7 @@ import { auth, database } from '../firebase/config';
 interface Room {
   id: string;
   name: string;
+  password: string;
   users: { [key: string]: RoomUser };
   createdAt: number;
 }
@@ -29,7 +30,9 @@ interface FirebaseContextType {
   user: User | null;
   currentRoom: Room | null;
   isConnected: boolean;
-  joinRoom: (roomId: string, username: string) => Promise<void>;
+  connectionError: string | null;
+  joinRoom: (roomId: string, username: string, password: string) => Promise<void>;
+  createRoom: (roomId: string, username: string, password: string) => Promise<void>;
   leaveRoom: () => Promise<void>;
   sendSignal: (targetUserId: string, signal: any, type: 'offer' | 'answer' | 'ice-candidate') => Promise<void>;
   startPTT: () => Promise<void>;
@@ -59,6 +62,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
   const [user, setUser] = useState<User | null>(null);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [username, setUsername] = useState<string>('');
 
   // Event callback'leri
@@ -70,30 +74,97 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
 
   // Firebase Auth
   useEffect(() => {
+    console.log('🔥 Firebase Auth başlatılıyor...');
+    
     const unsubscribe = auth.onAuthStateChanged((user) => {
+      console.log('🔥 Auth durumu değişti:', user ? `Giriş yapıldı (${user.uid})` : 'Çıkış yapıldı');
       setUser(user);
       setIsConnected(!!user);
+      
+      if (user) {
+        setConnectionError(null);
+        console.log('✅ Firebase bağlantısı başarılı');
+      }
     });
 
     // Anonim giriş yap
-    signInAnonymously(auth).catch((error) => {
-      console.error('Anonim giriş hatası:', error);
-    });
+    signInAnonymously(auth)
+      .then(() => {
+        console.log('✅ Anonim giriş başarılı');
+      })
+      .catch((error) => {
+        console.error('❌ Anonim giriş hatası:', error);
+        setConnectionError(`Firebase Auth hatası: ${error.message}`);
+      });
 
     return () => unsubscribe();
   }, []);
 
-  // Odaya katıl
-  const joinRoom = async (roomId: string, username: string): Promise<void> => {
-    if (!user) return;
+  // Oda oluştur
+  const createRoom = async (roomId: string, username: string, password: string): Promise<void> => {
+    if (!user) {
+      throw new Error('Kullanıcı girişi yapılmamış');
+    }
 
     try {
-      const roomRef = ref(database, `rooms/${roomId}`);
-      const userRef = ref(database, `rooms/${roomId}/users/${user.uid}`);
+      console.log('🏗️ Oda oluşturuluyor:', roomId);
       
-      setUsername(username);
+      const roomRef = ref(database, `rooms/${roomId}`);
+      const roomSnapshot = await get(roomRef);
+      
+      if (roomSnapshot.exists()) {
+        throw new Error('Bu oda adı zaten kullanılıyor');
+      }
+
+      // Yeni oda oluştur
+      const newRoom: Room = {
+        id: roomId,
+        name: roomId,
+        password: password,
+        users: {},
+        createdAt: Date.now()
+      };
+
+      await set(roomRef, newRoom);
+      console.log('✅ Oda oluşturuldu');
 
       // Kullanıcıyı odaya ekle
+      await joinRoom(roomId, username, password);
+      
+    } catch (error: any) {
+      console.error('❌ Oda oluşturma hatası:', error);
+      setConnectionError(error.message);
+      throw error;
+    }
+  };
+
+  // Odaya katıl
+  const joinRoom = async (roomId: string, username: string, password: string): Promise<void> => {
+    if (!user) {
+      throw new Error('Kullanıcı girişi yapılmamış');
+    }
+
+    try {
+      console.log('🚪 Odaya katılma denemesi:', roomId);
+      
+      const roomRef = ref(database, `rooms/${roomId}`);
+      const roomSnapshot = await get(roomRef);
+      
+      if (!roomSnapshot.exists()) {
+        throw new Error('Oda bulunamadı');
+      }
+
+      const roomData = roomSnapshot.val() as Room;
+      
+      // Şifre kontrolü
+      if (roomData.password !== password) {
+        throw new Error('Oda şifresi yanlış');
+      }
+
+      setUsername(username);
+      
+      // Kullanıcıyı odaya ekle
+      const userRef = ref(database, `rooms/${roomId}/users/${user.uid}`);
       const roomUser: RoomUser = {
         id: user.uid,
         username,
@@ -102,14 +173,17 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
       };
 
       await set(userRef, roomUser);
+      console.log('✅ Odaya katıldı');
 
       // Oda bilgilerini dinle
       onValue(roomRef, (snapshot) => {
         const roomData = snapshot.val();
         if (roomData) {
+          console.log('📡 Oda verisi güncellendi');
           setCurrentRoom({
             id: roomId,
             name: roomId,
+            password: roomData.password,
             users: roomData.users || {},
             createdAt: roomData.createdAt || Date.now()
           });
@@ -120,6 +194,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
       const usersRef = ref(database, `rooms/${roomId}/users`);
       onValue(usersRef, (snapshot) => {
         const users = snapshot.val();
+        console.log('👥 Kullanıcılar güncellendi:', users);
+        
         if (users && currentRoom) {
           // Yeni kullanıcılar için callback
           Object.values(users).forEach((roomUser: any) => {
@@ -135,6 +211,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
       onValue(signalsRef, (snapshot) => {
         const signals = snapshot.val();
         if (signals && signalCallback) {
+          console.log('📞 Signal alındı');
           Object.values(signals).forEach((signal: any) => {
             signalCallback(signal);
             // Signal'ı oku olarak işaretle (sil)
@@ -147,6 +224,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
       const pttRef = ref(database, `rooms/${roomId}/ptt`);
       onValue(pttRef, (snapshot) => {
         const pttData = snapshot.val();
+        console.log('🎤 PTT durumu:', pttData);
+        
         if (pttData) {
           if (pttData.isActive && pttData.userId !== user.uid) {
             if (pttStartedCallback) pttStartedCallback(pttData.userId);
@@ -156,8 +235,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
         }
       });
 
-    } catch (error) {
-      console.error('Odaya katılma hatası:', error);
+    } catch (error: any) {
+      console.error('❌ Odaya katılma hatası:', error);
+      setConnectionError(error.message);
       throw error;
     }
   };
@@ -167,11 +247,13 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
     if (!user || !currentRoom) return;
 
     try {
+      console.log('🚪 Odadan ayrılıyor...');
       const userRef = ref(database, `rooms/${currentRoom.id}/users/${user.uid}`);
       await remove(userRef);
       setCurrentRoom(null);
-    } catch (error) {
-      console.error('Odadan ayrılma hatası:', error);
+      console.log('✅ Odadan ayrıldı');
+    } catch (error: any) {
+      console.error('❌ Odadan ayrılma hatası:', error);
     }
   };
 
@@ -180,6 +262,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
     if (!user) return;
 
     try {
+      console.log('📞 Signal gönderiliyor:', type, 'to', targetUserId);
       const signalRef = push(ref(database, `signals/${targetUserId}`));
       const signalData: Signal = {
         type,
@@ -190,8 +273,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
       };
 
       await set(signalRef, signalData);
-    } catch (error) {
-      console.error('Signal gönderme hatası:', error);
+      console.log('✅ Signal gönderildi');
+    } catch (error: any) {
+      console.error('❌ Signal gönderme hatası:', error);
     }
   };
 
@@ -200,6 +284,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
     if (!user || !currentRoom) return;
 
     try {
+      console.log('🎤 PTT başlatılıyor...');
       const pttRef = ref(database, `rooms/${currentRoom.id}/ptt`);
       await set(pttRef, {
         isActive: true,
@@ -207,8 +292,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
         username,
         timestamp: Date.now()
       });
-    } catch (error) {
-      console.error('PTT başlatma hatası:', error);
+      console.log('✅ PTT başlatıldı');
+    } catch (error: any) {
+      console.error('❌ PTT başlatma hatası:', error);
     }
   };
 
@@ -217,6 +303,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
     if (!user || !currentRoom) return;
 
     try {
+      console.log('🎤 PTT durduruluyor...');
       const pttRef = ref(database, `rooms/${currentRoom.id}/ptt`);
       await set(pttRef, {
         isActive: false,
@@ -224,8 +311,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
         username,
         timestamp: Date.now()
       });
-    } catch (error) {
-      console.error('PTT durdurma hatası:', error);
+      console.log('✅ PTT durduruldu');
+    } catch (error: any) {
+      console.error('❌ PTT durdurma hatası:', error);
     }
   };
 
@@ -254,7 +342,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({ children }) 
     user,
     currentRoom,
     isConnected,
+    connectionError,
     joinRoom,
+    createRoom,
     leaveRoom,
     sendSignal,
     startPTT,
