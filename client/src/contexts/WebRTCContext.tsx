@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { useSocket } from './SocketContext';
+import { config } from '../config';
 
 interface PeerConnection {
   userId: string;
@@ -54,10 +55,7 @@ export const WebRTCProvider: React.FC<WebRTCProviderProps> = ({ children }) => {
       .catch(err => {
         console.error('ICE sunucuları alınamadı:', err);
         // Varsayılan STUN sunucuları
-        setIceServers([
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' }
-        ]);
+        setIceServers(config.iceServers);
       });
   }, []);
 
